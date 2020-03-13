@@ -44,7 +44,7 @@ Timenstein.prototype.mark = function (measureName) {
   }
 
   return false;
-}
+};
 
 Timenstein.prototype.measure = function (measureName, from, to) {
   // Once again, we aren't doing anything unless the APIs we need are available.
@@ -60,10 +60,12 @@ Timenstein.prototype.measure = function (measureName, from, to) {
     if (measureName in this.measures === false) {
       this.measures[measureName] = [];
     }
+
+    performance.measure(measureName, startMark, endMark);
   }
 
   return false;
-}
+};
 
 Timenstein.prototype.get = function (what) {
   if (what === "marks") {
@@ -73,6 +75,6 @@ Timenstein.prototype.get = function (what) {
   }
 
   return false;
-}
+};
 
 export default Timenstein;

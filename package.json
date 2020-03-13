@@ -2,9 +2,11 @@
   "name": "timenstein",
   "version": "0.1.0",
   "description": "A simpler way to gather user timings.",
-  "main": "./src/timenstein.mjs",
+  "module": "./src/timenstein.mjs",
+  "main": "./dist/timenstein.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "clean": "rm -rf ./dist",
+    "build": "npm run clean && npx rollup -c"
   },
   "keywords": [
     "user",
@@ -23,6 +25,7 @@
   "author": "Jeremy L. Wagner <jeremy.l.wagner@gmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "eslint": "^6.8.0"
+    "eslint": "^6.8.0",
+    "rollup": "^2.0.6"
   }
 }
