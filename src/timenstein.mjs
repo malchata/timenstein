@@ -4,7 +4,8 @@ function Timenstein (options) {
   options || {};
 
   this.namespace = "namespace" in options ? options.namespace : "timenstein";
-  this.logging = "logging" in options ? options.logging : false;
+  this.log = "logging" in options ? options.log : false;
+  this.logLevel = "logLevel" in options ? options.logLevel : "warn";
 
   this.compatible = "performance" in window && "mark" in window.performance && "measure" in window.performance && "getEntriesByName" in window.performance && "getEntriesByType" in window.performance && "clearMarks" in window.performance;
   this.marks = {};
@@ -48,14 +49,29 @@ Timenstein.prototype.mark = function (measureName) {
 
 Timenstein.prototype.measure = function (measureName, from, to) {
   // Once again, we aren't doing anything unless the APIs we need are available.
-  // We also need all parameters in order to calculate the measure.
-  if (measureName && from && to && this.compatible) {
-    const measureName = `${this.namespace}:${measureName}`;
-    const markStartName = `${measureName}-${from}`;
-    const markEndName = `${measureName}-${to}`;
+  // We also need necessary parameters in order to calculate the measure, and
+  // ensure that the given measureName has at least two recorded marks.
+  if (measureName && this.compatible && measureName in this.marks && this.marks[measureName].length >= 2) {
+    const markCount = this.marks[measureName].length;
 
-    const startMark = performance.getEntriesByName(markStartName)[0];
-    const endMark = performance.getEntriesByName(markEndName)[0];
+    // If the `from` and `to` arguments aren't provided, just measure from end
+    // to end in the measure's array.
+    from = from || 1;
+    to = to || this.marks[measureName].length;
+
+    // Make sure the `from` value is in bounds
+    if (from < 1 || from >= to || from > markCount) {
+      return false;
+    }
+
+    // Make sure the `to` value is in bounds
+    if (to < 1 || to <= from || to > markCount) {
+      return false;
+    }
+
+    const measureName = `${this.namespace}:${measureName}`;
+    const startMark = performance.getEntriesByName(`${measureName}-${from}`)[0];
+    const endMark = performance.getEntriesByName(`${measureName}-${to}`)[0];
 
     if (measureName in this.measures === false) {
       this.measures[measureName] = [];
