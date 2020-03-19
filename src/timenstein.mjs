@@ -1,7 +1,5 @@
 function Timenstein (options) {
-  // We use this pattern for default options because using ES6 default params
-  // current introduces transpiler bloat in all environments.
-  options || {};
+  options = options || {};
 
   this.namespace = "namespace" in options ? options.namespace : "timenstein";
   this.log = "logging" in options ? options.log : false;
@@ -31,12 +29,7 @@ Timenstein.prototype.mark = function (measureName) {
     performance.mark(markName);
 
     // Create a custom object from the mark we just, er, marked.
-    const { name, startTime, duration } = performance.getEntriesByName(markName)[0];
-    const markEntry = {
-      name,
-      startTime,
-      duration
-    };
+    const markEntry = this.clone(performance.getEntriesByName(markName)[0]);
 
     // Record the mark in our marks array.
     this.marks[measureName].push(markEntry);
@@ -60,24 +53,52 @@ Timenstein.prototype.measure = function (measureName, from, to) {
     to = to || this.marks[measureName].length;
 
     // Make sure the `from` value is in bounds
-    if (from < 1 || from >= to || from > markCount) {
+    if (from < 1 || from > to || from > markCount) {
       return false;
     }
 
     // Make sure the `to` value is in bounds
-    if (to < 1 || to <= from || to > markCount) {
+    if (to < 1 || to < from || to > markCount) {
       return false;
     }
 
-    const measureName = `${this.namespace}:${measureName}`;
+    const namespacedMeasureName = `${this.namespace}:${measureName}`;
     const startMark = performance.getEntriesByName(`${measureName}-${from}`)[0];
     const endMark = performance.getEntriesByName(`${measureName}-${to}`)[0];
 
-    if (measureName in this.measures === false) {
-      this.measures[measureName] = [];
+    if (namespacedMeasureName in this.measures === false) {
+      this.measures[namespacedMeasureName] = [];
     }
 
-    performance.measure(measureName, startMark, endMark);
+    performance.measure(namespacedMeasureName, startMark, endMark);
+    const measureEntry = this.clone(performance.getEntriesByName(namespacedMeasureName)[0]);
+    this.measures[namespacedMeasureName].push(measureEntry);
+
+    return measureEntry;
+  }
+
+  return false;
+};
+
+Timenstein.prototype.clear = function (what) {
+  if (what === "marks" || what === "measures") {
+    const method = `clear${what[0].toUpperCase() + what.slice(1)}`;
+
+    performance.getEntries().forEach(entry => {
+      if (entry.entryType === what.substr(0, what.length - 1) && entry.name.indexOf(this.namespace) > -1) {
+        performance[method](entry.name);
+      }
+    });
+
+    return true;
+  }
+
+  return false;
+};
+
+Timenstein.prototype.clone = function (obj) {
+  if (typeof obj === "object") {
+    return JSON.parse(JSON.stringify(obj));
   }
 
   return false;
@@ -93,4 +114,4 @@ Timenstein.prototype.get = function (what) {
   return false;
 };
 
-export default Timenstein;
+//export default Timenstein;
