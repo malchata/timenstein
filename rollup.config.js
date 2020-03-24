@@ -3,6 +3,10 @@ import babel from "rollup-plugin-babel";
 import { terser } from "rollup-plugin-terser";
 import pkg from "./package.json";
 
+const commonConfigOptions = {
+  input: "src/timenstein.mjs"
+};
+
 const commonTerserOptions = {
   timings: true,
   compress: {
@@ -15,8 +19,24 @@ const commonTerserOptions = {
 };
 
 export default [
+  // ESM build
   {
-    input: pkg.module,
+    output: {
+      file: pkg.module,
+      format: "esm"
+    },
+    ...commonConfigOptions
+  },
+  // CommonJS build
+  {
+    output: {
+      file: pkg.main,
+      format: "cjs"
+    },
+    ...commonConfigOptions
+  },
+  // Uglified ES6 build
+  {
     output: {
       file: "dist/timenstein.min.mjs",
       format: "esm"
@@ -39,15 +59,16 @@ export default [
         mangle: {
           keep_fnames: true,
           toplevel: true,
-          reserved: ["timenstein"],
+          reserved: ["Timenstein"],
           module: true
         },
         ...commonTerserOptions
       })
-    ]
+    ],
+    ...commonConfigOptions
   },
+  // Uglified ES5 build
   {
-    input: pkg.module,
     output: {
       name: "timenstein",
       file: "dist/timenstein.min.js",
@@ -74,13 +95,7 @@ export default [
         },
         ...commonTerserOptions
       })
-    ]
-  },
-  {
-    input: pkg.module,
-    output: {
-      file: pkg.main,
-      format: "cjs"
-    }
+    ],
+    ...commonConfigOptions
   }
 ];
