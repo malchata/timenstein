@@ -36,10 +36,10 @@ const Timenstein = (function (window) {
     }
 
     options = options || {};
-    errorLogging = "errorLogging" in options ? options.errorLogging : true;
-    errorLogLevel = "errorLogLevel" in options ? /^(log|warn|error)$/.test(options.errorLogLevel) : "warn";
-    namespace = "namespace" in options ? options.namespace : "timenstein";
-    namespaceSeparator = "namespaceSeparator" in options ? options.namespaceSeparator : "::";
+    errorLogging = options.errorLogging || true;
+    errorLogLevel = /^(log|warn|error)$/.test(options.errorLogLevel) ? options.errorLogLevel : "warn";
+    namespace = options.namespace || "timenstein";
+    namespaceSeparator = options.namespaceSeparator || "::";
 
     performanceObserver = new PerformanceObserver(entryList => {
       entryList.getEntries().forEach(entry => {
@@ -94,12 +94,12 @@ const Timenstein = (function (window) {
       };
     }
 
+    markName = `${namespace}${namespaceSeparator}${measureName}-${markNumber}`;
+    performance.mark(markName);
+
     if (end) {
       marks[measureName].locked = true;
     }
-
-    markName = `${namespace}${namespaceSeparator}${measureName}-${markNumber}`;
-    performance.mark(markName);
 
     return {
       markName,
@@ -178,9 +178,13 @@ const Timenstein = (function (window) {
     }
   };
 
-  Timenstein.prototype.getMarks = () => marks;
+  Timenstein.prototype.getMarks = function () {
+    return marks;
+  };
 
-  Timenstein.prototype.getMeasures = () => measures;
+  Timenstein.prototype.getMeasures = function () {
+    return measures;
+  };
 
   return Timenstein;
 }(window));
