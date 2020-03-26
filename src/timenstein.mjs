@@ -1,23 +1,24 @@
 import {
   ERR_NOT_COMPATIBLE,
-  ERR_MISSING_MEASURE_NAME,
+  ERR_MISSING_HANDLE,
   ERR_ENTRY_LOCKED,
-  ERR_MEASURE_NAME_NOT_EXIST,
+  ERR_HANDLE_NOT_EXIST,
   ERR_INSUFFICIENT_MARKS,
   ERR_INVALID_RANGE,
-  ERR_INVALID_CLEAR_TOKEN
+  ERR_INVALID_CLEAR_TOKEN,
+  ERR_HANDLE_CONTAINS_NAMESPACE_DELIMITER
 } from "./messages.mjs";
 
 const Timenstein = (function (window, performance) {
   // Private variables
-  let marks = {}, measures = {};
-  let errorLogging, errorLogLevel, namespace, namespaceSeparator;
+  let marks = {}, measures = {}, initialized = false;
+  let errorLogging, errorLogLevel, namespace, namespaceDelimiter;
   const compatible = performance && "mark" in performance && "measure" in performance && "getEntriesByName" in performance && "clearMarks" in performance && "clearMeasures" in performance;
 
   // Private methods
   const clone = obj => JSON.parse(JSON.stringify(obj));
-
-  const inRange = (n, min, max) => n >= min && n <= max;
+  const inRange = (n, max) => n >= 1 && n <= max;
+  const getMark = markName => performance.getEntriesByName(markName)[0];
 
   const log = msg => {
     if (errorLogging) {
@@ -30,36 +31,41 @@ const Timenstein = (function (window, performance) {
     if (!compatible) {
       log(ERR_NOT_COMPATIBLE);
 
-      return false;
+      return initialized;
     }
 
+    initialized = true;
     options = options || {};
     errorLogging = options.errorLogging || true;
     errorLogLevel = /^(log|warn|error)$/.test(options.errorLogLevel) ? options.errorLogLevel : "warn";
     namespace = options.namespace || "timenstein";
-    namespaceSeparator = options.namespaceSeparator || "::";
+    namespaceDelimiter = options.namespaceDelimiter || "::";
 
-    return true;
+    return initialized;
   }
 
   // Public methods
   Timenstein.prototype.mark = function (measureName, end) {
-    end = end || false;
-    let markNumber, markName;
-
-    if (!compatible) {
+    if (!initialized) {
       log(ERR_NOT_COMPATIBLE);
 
-      return false;
+      return initialized;
     }
 
     if (!measureName) {
-      log(ERR_MISSING_MEASURE_NAME);
+      log(ERR_MISSING_HANDLE);
 
       return false;
     }
 
-    const namespacedMeasureName = `${namespace}${namespaceSeparator}${measureName}`;
+    if (measureName.indexOf(namespaceDelimiter) > -1) {
+      log(ERR_HANDLE_CONTAINS_NAMESPACE_DELIMITER);
+
+      return false;
+    }
+
+    let markNumber;
+    const namespacedMeasureName = `${namespace}${namespaceDelimiter}${measureName}`;
 
     if (namespacedMeasureName in marks && marks[namespacedMeasureName].locked) {
       log(ERR_ENTRY_LOCKED);
@@ -77,16 +83,14 @@ const Timenstein = (function (window, performance) {
       };
     }
 
-    markName = `${namespacedMeasureName}-${markNumber}`;
+    let markName = `${namespacedMeasureName}-${markNumber}`;
     performance.mark(markName);
 
-    if (end) {
+    if (end || false) {
       marks[namespacedMeasureName].locked = true;
     }
 
-    const markEntry = clone(performance.getEntriesByName(markName)[0]);
-
-    marks[namespacedMeasureName].entries.push(markEntry);
+    marks[namespacedMeasureName].entries.push(clone(getMark(markName)));
 
     return {
       markName,
@@ -95,22 +99,22 @@ const Timenstein = (function (window, performance) {
   };
 
   Timenstein.prototype.measure = function (measureName, startSegment, endSegment) {
-    if (!compatible) {
+    if (!initialized) {
       log(ERR_NOT_COMPATIBLE);
 
-      return false;
+      return initialized;
     }
 
     if (!measureName) {
-      log(ERR_MISSING_MEASURE_NAME);
+      log(ERR_MISSING_HANDLE);
 
       return false;
     }
 
-    const namespacedMeasureName = `${namespace}${namespaceSeparator}${measureName}`;
+    const namespacedMeasureName = `${namespace}${namespaceDelimiter}${measureName}`;
 
     if (namespacedMeasureName in marks === false) {
-      log(ERR_MEASURE_NAME_NOT_EXIST);
+      log(ERR_HANDLE_NOT_EXIST);
 
       return false;
     }
@@ -125,16 +129,12 @@ const Timenstein = (function (window, performance) {
 
     startSegment = startSegment || 1;
     endSegment = endSegment || max;
-    const validRange = startSegment < endSegment && endSegment > startSegment && inRange(startSegment, 1, max) && inRange(endSegment, 1, max);
 
-    if (!validRange) {
+    if (!(startSegment < endSegment && endSegment > startSegment && inRange(startSegment, max) && inRange(endSegment, max))) {
       log(ERR_INVALID_RANGE);
 
       return false;
     }
-
-    const startMark = performance.getEntriesByName(`${measureName}-${startSegment}`)[0];
-    const endMark = performance.getEntriesByName(`${measureName}-${endSegment}`)[0];
 
     if (namespacedMeasureName in measures === false) {
       measures[namespacedMeasureName] = {
@@ -142,11 +142,11 @@ const Timenstein = (function (window, performance) {
       };
     }
 
-    performance.measure(namespacedMeasureName, startMark, endMark);
+    performance.measure(namespacedMeasureName, getMark(`${measureName}-${startSegment}`), getMark(`${measureName}-${endSegment}`));
 
-    let measureEntry = clone(performance.getEntriesByName(namespacedMeasureName)[0]);
-    measureEntry.start = startSegment;
-    measureEntry.end = endSegment;
+    let measureEntry = clone(getMark(namespacedMeasureName));
+    measureEntry.startSegment = startSegment;
+    measureEntry.endSegment = endSegment;
 
     measures[namespacedMeasureName].entries.push(measureEntry);
 
@@ -154,39 +154,38 @@ const Timenstein = (function (window, performance) {
   };
 
   Timenstein.prototype.clear = function (what, pattern) {
-    if (what !== "marks" && what !== "measures") {
+    if (!initialized) {
+      log(ERR_NOT_COMPATIBLE);
+
+      return initialized;
+    }
+
+    if (!/^m(arks|easures)$/i.test(what)) {
       log(ERR_INVALID_CLEAR_TOKEN);
 
       return false;
     }
 
-    if (what === "marks" || what === "measures") {
-      const method = `clear${what[0].toUpperCase() + what.slice(1)}`;
-      const entryType = what.substr(0, what.length - 1);
+    const givenEntryType = what.substr(0, what.length - 1);
 
-      performance.getEntries().forEach(entry => {
-        let match = entry.entryType === entryType && entry.name.indexOf(`${namespace}${namespaceSeparator}`) === 0;
+    performance.getEntries().forEach(entry => {
+      let match = entry.entryType === givenEntryType && entry.name.indexOf(`${namespace}${namespaceDelimiter}`) === 0;
 
-        if (pattern instanceof RegExp) {
-          match = match && pattern.test(entry.name);
-        }
+      if (pattern instanceof RegExp) {
+        match = match && pattern.test(entry.name);
+      }
 
-        if (match) {
-          performance[method](entry.name);
-        }
-      });
+      if (match) {
+        performance[`clear${what[0].toUpperCase() + what.slice(1)}`](entry.name);
+      }
+    });
 
-      return true;
-    }
+    return true;
   };
 
-  Timenstein.prototype.getMarks = function () {
-    return marks;
-  };
+  Timenstein.prototype.getMarks = () => marks;
 
-  Timenstein.prototype.getMeasures = function () {
-    return measures;
-  };
+  Timenstein.prototype.getMeasures = () => measures;
 
   return Timenstein;
 }(window, performance));
