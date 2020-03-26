@@ -1,7 +1,7 @@
 # Timenstein
 
 <p align="center">
-  <img src="franky.jpg" alt="Timenstein's Monster" width="382" height="480" />
+  <img src="https://raw.githubusercontent.com/malchata/timenstein/master/franky.jpg" alt="Timenstein's Monster" width="382" height="480" />
 </p>
 
 <p align="center">

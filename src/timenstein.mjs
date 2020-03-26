@@ -9,16 +9,15 @@ import {
   ERR_HANDLE_CONTAINS_NAMESPACE_DELIMITER
 } from "./messages.mjs";
 
-const Timenstein = (function (window, performance) {
+const Timenstein = (function (performance) {
   // Private variables
   let marks = {}, measures = {}, initialized = false;
   let errorLogging, errorLogLevel, namespace, namespaceDelimiter;
   const compatible = performance && "mark" in performance && "measure" in performance && "getEntriesByName" in performance && "clearMarks" in performance && "clearMeasures" in performance;
 
   // Private methods
-  const clone = obj => JSON.parse(JSON.stringify(obj));
   const inRange = (n, max) => n >= 1 && n <= max;
-  const getMark = markName => performance.getEntriesByName(markName)[0];
+  const getPerfEntry = entryName => "toJSON" in window.PerformanceEntry.prototype ? performance.getEntriesByName(entryName)[0].toJSON() : JSON.parse(JSON.stringify(performance.getEntriesByName(entryName)[0]));
 
   const log = msg => {
     if (errorLogging) {
@@ -90,7 +89,7 @@ const Timenstein = (function (window, performance) {
       marks[namespacedMeasureName].locked = true;
     }
 
-    marks[namespacedMeasureName].entries.push(clone(getMark(markName)));
+    marks[namespacedMeasureName].entries.push(getPerfEntry(markName));
 
     return {
       markName,
@@ -142,9 +141,9 @@ const Timenstein = (function (window, performance) {
       };
     }
 
-    performance.measure(namespacedMeasureName, getMark(`${measureName}-${startSegment}`), getMark(`${measureName}-${endSegment}`));
+    performance.measure(namespacedMeasureName, getPerfEntry(`${measureName}-${startSegment}`), getPerfEntry(`${measureName}-${endSegment}`));
 
-    let measureEntry = clone(getMark(namespacedMeasureName));
+    let measureEntry = getPerfEntry(namespacedMeasureName);
     measureEntry.startSegment = startSegment;
     measureEntry.endSegment = endSegment;
 
@@ -188,6 +187,6 @@ const Timenstein = (function (window, performance) {
   Timenstein.prototype.getMeasures = () => measures;
 
   return Timenstein;
-}(window, performance));
+}(window.performance));
 
 export default Timenstein;
