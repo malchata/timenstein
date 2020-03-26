@@ -1,25 +1,23 @@
-import { ERR_NOT_COMPATIBLE, ERR_MISSING_MEASURE_NAME, ERR_ENTRY_LOCKED, ERR_MEASURE_NAME_NOT_EXIST, ERR_INSUFFICIENT_MARKS, ERR_INVALID_RANGE, ERR_INVALID_CLEAR_TOKEN } from "./messages.mjs";
+import {
+  ERR_NOT_COMPATIBLE,
+  ERR_MISSING_MEASURE_NAME,
+  ERR_ENTRY_LOCKED,
+  ERR_MEASURE_NAME_NOT_EXIST,
+  ERR_INSUFFICIENT_MARKS,
+  ERR_INVALID_RANGE,
+  ERR_INVALID_CLEAR_TOKEN
+} from "./messages.mjs";
 
-const Timenstein = (function (window) {
+const Timenstein = (function (window, performance) {
   // Private variables
   let marks = {}, measures = {};
-  let errorLogging, errorLogLevel, namespace, namespaceSeparator, performanceObserver;
-  const compatible = "performance" in window && "mark" in window.performance && "measure" in window.performance && "getEntriesByName" in window.performance && "getEntriesByType" in window.performance && "clearMarks" in window.performance && "PerformanceObserver" in window;
+  let errorLogging, errorLogLevel, namespace, namespaceSeparator;
+  const compatible = performance && "mark" in performance && "measure" in performance && "getEntriesByName" in performance && "clearMarks" in performance && "clearMeasures" in performance;
 
   // Private methods
   const clone = obj => JSON.parse(JSON.stringify(obj));
 
-  const inRange = (n, min, max) => n > min && n < max;
-
-  const getMeasureNameFromMarkName = entryName => {
-    const markName = entryName.split(namespaceSeparator)[1];
-
-    return markName.split("-").map((item, index, array) => {
-      if (index < array.length - 1) {
-        return item;
-      }
-    }).join("");
-  };
+  const inRange = (n, min, max) => n >= min && n <= max;
 
   const log = msg => {
     if (errorLogging) {
@@ -41,28 +39,14 @@ const Timenstein = (function (window) {
     namespace = options.namespace || "timenstein";
     namespaceSeparator = options.namespaceSeparator || "::";
 
-    performanceObserver = new PerformanceObserver(entryList => {
-      entryList.getEntries().forEach(entry => {
-        if (entry.entryType === "mark") {
-          const measureName = getMeasureNameFromMarkName(entry.name);
-          marks[measureName].entries.push(clone(entry));
-        }
-
-        if (entry.entryType === "measure") {
-          console.dir(entry);
-        }
-      });
-    });
-
-    performanceObserver.observe({
-      entryTypes: ["mark", "measure"]
-    });
-
     return true;
   }
 
   // Public methods
   Timenstein.prototype.mark = function (measureName, end) {
+    end = end || false;
+    let markNumber, markName;
+
     if (!compatible) {
       log(ERR_NOT_COMPATIBLE);
 
@@ -75,31 +59,34 @@ const Timenstein = (function (window) {
       return false;
     }
 
-    end = end || false;
-    let markNumber, markName;
+    const namespacedMeasureName = `${namespace}${namespaceSeparator}${measureName}`;
 
-    if (measureName in marks && marks[measureName].locked) {
+    if (namespacedMeasureName in marks && marks[namespacedMeasureName].locked) {
       log(ERR_ENTRY_LOCKED);
 
       return false;
     }
 
-    if (measureName in marks) {
-      markNumber = marks[measureName].entries.length + 1;
+    if (namespacedMeasureName in marks) {
+      markNumber = marks[namespacedMeasureName].entries.length + 1;
     } else {
       markNumber = 1;
-      marks[measureName] = {
+      marks[namespacedMeasureName] = {
         locked: false,
         entries: []
       };
     }
 
-    markName = `${namespace}${namespaceSeparator}${measureName}-${markNumber}`;
+    markName = `${namespacedMeasureName}-${markNumber}`;
     performance.mark(markName);
 
     if (end) {
-      marks[measureName].locked = true;
+      marks[namespacedMeasureName].locked = true;
     }
+
+    const markEntry = clone(performance.getEntriesByName(markName)[0]);
+
+    marks[namespacedMeasureName].entries.push(markEntry);
 
     return {
       markName,
@@ -107,7 +94,7 @@ const Timenstein = (function (window) {
     };
   };
 
-  Timenstein.prototype.measure = function (measureName, from, to) {
+  Timenstein.prototype.measure = function (measureName, startSegment, endSegment) {
     if (!compatible) {
       log(ERR_NOT_COMPATIBLE);
 
@@ -120,13 +107,15 @@ const Timenstein = (function (window) {
       return false;
     }
 
-    if (measureName in marks === false) {
+    const namespacedMeasureName = `${namespace}${namespaceSeparator}${measureName}`;
+
+    if (namespacedMeasureName in marks === false) {
       log(ERR_MEASURE_NAME_NOT_EXIST);
 
       return false;
     }
 
-    const max = marks[measureName].entries.length;
+    const max = marks[namespacedMeasureName].entries.length;
 
     if (max < 2) {
       log(ERR_INSUFFICIENT_MARKS);
@@ -134,9 +123,9 @@ const Timenstein = (function (window) {
       return false;
     }
 
-    from = from || 1;
-    to = to || max;
-    const validRange = from < to || to > from || inRange(from, 1, max) || inRange(to, 1, max);
+    startSegment = startSegment || 1;
+    endSegment = endSegment || max;
+    const validRange = startSegment < endSegment && endSegment > startSegment && inRange(startSegment, 1, max) && inRange(endSegment, 1, max);
 
     if (!validRange) {
       log(ERR_INVALID_RANGE);
@@ -144,20 +133,27 @@ const Timenstein = (function (window) {
       return false;
     }
 
-    const namespacedMeasureName = `${namespace}${namespaceSeparator}${measureName}`;
-    const startMark = performance.getEntriesByName(`${measureName}-${from}`)[0];
-    const endMark = performance.getEntriesByName(`${measureName}-${to}`)[0];
+    const startMark = performance.getEntriesByName(`${measureName}-${startSegment}`)[0];
+    const endMark = performance.getEntriesByName(`${measureName}-${endSegment}`)[0];
 
     if (namespacedMeasureName in measures === false) {
-      measures[namespacedMeasureName] = [];
+      measures[namespacedMeasureName] = {
+        entries: []
+      };
     }
 
     performance.measure(namespacedMeasureName, startMark, endMark);
 
+    let measureEntry = clone(performance.getEntriesByName(namespacedMeasureName)[0]);
+    measureEntry.start = startSegment;
+    measureEntry.end = endSegment;
+
+    measures[namespacedMeasureName].entries.push(measureEntry);
+
     return true;
   };
 
-  Timenstein.prototype.clear = function (what) {
+  Timenstein.prototype.clear = function (what, pattern) {
     if (what !== "marks" && what !== "measures") {
       log(ERR_INVALID_CLEAR_TOKEN);
 
@@ -169,7 +165,13 @@ const Timenstein = (function (window) {
       const entryType = what.substr(0, what.length - 1);
 
       performance.getEntries().forEach(entry => {
-        if (entry.entryType === entryType && entry.name.indexOf(`${namespace}${namespaceSeparator}`) === 0) {
+        let match = entry.entryType === entryType && entry.name.indexOf(`${namespace}${namespaceSeparator}`) === 0;
+
+        if (pattern instanceof RegExp) {
+          match = match && pattern.test(entry.name);
+        }
+
+        if (match) {
           performance[method](entry.name);
         }
       });
@@ -187,6 +189,6 @@ const Timenstein = (function (window) {
   };
 
   return Timenstein;
-}(window));
+}(window, performance));
 
 export default Timenstein;

@@ -7,17 +7,6 @@ const commonConfigOptions = {
   input: "src/timenstein.mjs"
 };
 
-const commonTerserOptions = {
-  timings: true,
-  compress: {
-    sequences: true,
-    conditionals: true,
-    evaluate: true,
-    unsafe_arrows: true,
-    warnings: true
-  }
-};
-
 export default [
   // ESM build
   {
@@ -55,14 +44,11 @@ export default [
         ]
       }),
       terser({
-        ecma: 8,
+        ecma: 2017,
         mangle: {
-          keep_fnames: true,
-          toplevel: true,
           reserved: ["Timenstein"],
           module: true
-        },
-        ...commonTerserOptions
+        }
       })
     ],
     ...commonConfigOptions
@@ -70,7 +56,7 @@ export default [
   // Uglified ES5 build
   {
     output: {
-      name: "timenstein",
+      name: "Timenstein",
       file: "dist/timenstein.min.js",
       format: "iife"
     },
@@ -88,12 +74,9 @@ export default [
       terser({
         ecma: 5,
         mangle: {
-          keep_fnames: true,
-          toplevel: true,
           reserved: ["Timenstein"],
           module: false
-        },
-        ...commonTerserOptions
+        }
       })
     ],
     ...commonConfigOptions
