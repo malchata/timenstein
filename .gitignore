@@ -1,5 +1,6 @@
 node_modules
-dist
 .DS_Store
 Thumbs.db
 npm-debug.log
+dist/timenstein.mjs
+dist/timenstein.js
