@@ -19,27 +19,13 @@ const Timenstein = (function (window, performance) {
   const inRange = (n, max) => n >= 1 && n <= max;
   const getNamespacedHandleFromEntryName = entryName => entryName.split("-")[0];
   const getSegmentNumberFromMarkName = markName => markName.split("-")[1];
+  const getResourceTimingsForMeasure = (start, end) => performance.getEntriesByType("resource").filter(entry => entry.startTime >= start && entry.responseEnd <= end).map(entry => cloneEntry(entry));
+  const cloneEntry = entry => "toJSON" in window.PerformanceEntry.prototype ? entry.toJSON() : JSON.parse(JSON.stringify(entry));
 
   const getSegmentNumbersFromMeasureName = measureName => {
     const measureNameParts = measureName.split("-");
 
     return [measureNameParts[1], measureNameParts[2]];
-  };
-
-  const getResourceTimingsInRange = (start, end) => performance.getEntriesByType("resource").filter(entry => {
-    // TODO
-  });
-
-  const cloneEntry = entry => "toJSON" in window.PerformanceEntry.prototype ? entry.toJSON() : JSON.parse(JSON.stringify(entry));
-
-  const getPerfEntry = entryName => {
-    const entry = performance.getEntriesByName(entryName)[0];
-
-    if (entry) {
-      return entry;
-    }
-
-    return false;
   };
 
   const log = msg => {
@@ -82,6 +68,7 @@ const Timenstein = (function (window, performance) {
 
             measureEntry.startSegment = segments[0];
             measureEntry.endSegment = segments[1];
+            measureEntry.resources = getResourceTimingsForMeasure(entry.startTime, entry.startTime + entry.duration);
 
             measures[namespacedHandle].entries.push(measureEntry);
           }
