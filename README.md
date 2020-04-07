@@ -43,21 +43,19 @@ _Measures_ are used to measure the time between marks on the performance timelin
 ```javascript
 document.getElementById("get-data").addEventListener("click", () => {
   // Define mark names
-  const startMarkName = "get-data-start";
-  const endMarkName = "get-data-end";
+  const measureName = "get-data";
+  const startMarkName = `${measureName}-start`;
+  const endMarkName = `${measureName}-end`;
 
   // Mark the start point
   performance.mark(startMarkName);
-
-  // Get the starting performance mark we just made
-  const startMark = performance.getEntriesByName(startMarkName)[0];
 
   fetch("https://bigolemoviedatabase.dev/api/movies/fargo").then(response => response.json()).then(data => {
     // We have the response, now mark the end point
     performance.mark(endMarkName);
 
-    // Get the ending performance mark we just made
-    const endMark = performance.getEntriesByName(endMarkName)[0];
+    // Now we can measure
+    performance.measure(measureName, startMarkName, )
   });
 });
 ```
@@ -72,4 +70,19 @@ Like User Timing, Timenstein makes use of marks and measures, but it stores this
 import Timenstein from "timenstein";
 
 const userPerf = new Timenstein();
+
+// Define the handle we'll use to make marks and measures
+const handle = "get-data";
+
+// Mark the start point using our handle
+userPerf.mark(handle);
+
+fetch("https://bigolemoviedatabase.dev/api/movies/fargo").then(response => response.json()).then(data => {
+  // Mark the end point using the same handle
+  userPerf.mark(handle);
+
+  // Measure how long it took to get the data by using the same handle, only
+  // this time we call the `measure` method
+  userPerf.measure(handle);
+});
 ```

@@ -5,14 +5,15 @@ import {
   ERR_HANDLE_NOT_EXIST,
   ERR_INSUFFICIENT_MARKS,
   ERR_INVALID_RANGE,
-  ERR_INVALID_CLEAR_TOKEN,
-  ERR_HANDLE_CONTAINS_NAMESPACE_DELIMITER
+  ERR_INVALID_TOKEN,
+  ERR_HANDLE_CONTAINS_NAMESPACE_DELIMITER,
+  ERR_HANDLE_CONTAINS_SEGMENT_DELIMITER
 } from "./messages.mjs";
 
 const Timenstein = (function (window, performance) {
   // Private variables
   let marks = {}, measures = {}, initialized = false;
-  let errorLogging, errorLogLevel, namespace, namespaceDelimiter, observer;
+  let errorLogging, errorLogLevel, namespace, namespaceDelimiter, segmentDelimiter, observer;
   const compatible = performance && "mark" in performance && "measure" in performance && "getEntriesByName" in performance && "clearMarks" in performance && "clearMeasures" in performance && "PerformanceObserver" in window;
 
   // Private methods
@@ -44,6 +45,7 @@ const Timenstein = (function (window, performance) {
       errorLogLevel = /^(log|warn|error)$/.test(options.errorLogLevel) ? options.errorLogLevel : "warn";
       namespace = options.namespace || "timenstein";
       namespaceDelimiter = options.namespaceDelimiter || "::";
+      segmentDelimiter = options.segmentDelimiter || "-";
       observer = new PerformanceObserver(list => {
         list.getEntries().forEach(entry => {
           const { name, entryType } = entry;
@@ -102,6 +104,12 @@ const Timenstein = (function (window, performance) {
       return false;
     }
 
+    if (handle.indexOf(segmentDelimiter) > -1) {
+      log(ERR_HANDLE_CONTAINS_SEGMENT_DELIMITER);
+
+      return false;
+    }
+
     let markNumber;
     const namespacedHandle = `${namespace}${namespaceDelimiter}${handle}`;
 
@@ -144,6 +152,18 @@ const Timenstein = (function (window, performance) {
       return false;
     }
 
+    if (handle.indexOf(namespaceDelimiter) > -1) {
+      log(ERR_HANDLE_CONTAINS_NAMESPACE_DELIMITER);
+
+      return false;
+    }
+
+    if (handle.indexOf(segmentDelimiter) > -1) {
+      log(ERR_HANDLE_CONTAINS_SEGMENT_DELIMITER);
+
+      return false;
+    }
+
     const namespacedHandle = `${namespace}${namespaceDelimiter}${handle}`;
 
     if (!(namespacedHandle in marks)) {
@@ -175,11 +195,7 @@ const Timenstein = (function (window, performance) {
       };
     }
 
-    const measureName = `${namespacedHandle}-${startSegment}-${endSegment}`;
-    const startMark = `${namespacedHandle}-${startSegment}`;
-    const endMark = `${namespacedHandle}-${endSegment}`;
-
-    performance.measure(measureName, startMark, endMark);
+    performance.measure(`${namespacedHandle}-${startSegment}-${endSegment}`, `${namespacedHandle}-${startSegment}`, `${namespacedHandle}-${endSegment}`);
 
     return true;
   };
@@ -192,7 +208,7 @@ const Timenstein = (function (window, performance) {
     }
 
     if (!/^m(arks|easures)$/i.test(what)) {
-      log(ERR_INVALID_CLEAR_TOKEN);
+      log(ERR_INVALID_TOKEN);
 
       return false;
     }
@@ -216,8 +232,31 @@ const Timenstein = (function (window, performance) {
     return true;
   };
 
-  Timenstein.prototype.getMarks = () => marks;
-  Timenstein.prototype.getMeasures = () => measures;
+  Timenstein.prototype.get = (what, pattern) => {
+    let entries;
+
+    if (what === "marks") {
+      entries = marks;
+    } else if (what === "measures") {
+      entries = measures;
+    } else {
+      log(ERR_INVALID_TOKEN);
+
+      return false;
+    }
+
+    if (pattern instanceof RegExp) {
+      let filteredEntries = {};
+
+      Object.keys(entries).filter(entryName => pattern.test(entryName)).forEach(entryName => {
+        filteredEntries[entryName] = entries[entryName];
+      });
+
+      return filteredEntries;
+    }
+
+    return entries;
+  };
 
   return Timenstein;
 })(window, window.performance);
